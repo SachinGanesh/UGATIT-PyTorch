@@ -294,9 +294,15 @@ for epoch in range(0, args.epochs):
             vutils.save_image(fake_image_A.detach(),
                               f"{args.outf}/{args.dataset}/A/fake_samples_epoch_{epoch}.png",
                               normalize=True)
+            vutils.save_image(fake_image_A.detach(),
+                                f"{args.outf}/{args.dataset}/A/fake_sample.png",
+                                normalize=True)
             vutils.save_image(fake_image_B.detach(),
-                              f"{args.outf}/{args.dataset}/B/fake_samples_epoch_{epoch}.png",
-                              normalize=True)
+                            f"{args.outf}/{args.dataset}/B/fake_samples_epoch_{epoch}.png",
+                            normalize=True)
+            vutils.save_image(fake_image_B.detach(),
+                            f"{args.outf}/{args.dataset}/B/fake_sample.png",
+                            normalize=True)
     # do check pointing
     torch.save(netG_A2B.state_dict(), f"weights/{args.dataset}/netG_A2B_epoch_{epoch}.pth")
     torch.save(netG_B2A.state_dict(), f"weights/{args.dataset}/netG_B2A_epoch_{epoch}.pth")
