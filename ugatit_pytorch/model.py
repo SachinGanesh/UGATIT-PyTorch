@@ -35,32 +35,32 @@ class AdaILN(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, n_layers=5):
+    def __init__(self, n_layers=5, ndf=64):
         super(Discriminator, self).__init__()
         model = [nn.ReflectionPad2d(1),
-                 nn.utils.spectral_norm(nn.Conv2d(3, 64, 4, 2, 0, bias=True)),
+                 nn.utils.spectral_norm(nn.Conv2d(3, ndf, 4, 2, 0, bias=True)),
                  nn.LeakyReLU(0.2, True)]
 
         for i in range(1, n_layers - 2):
             mult = 2 ** (i - 1)
             model += [nn.ReflectionPad2d(1),
-                      nn.utils.spectral_norm(nn.Conv2d(64 * mult, 64 * mult * 2, 4, 2, 0, bias=True)),
+                      nn.utils.spectral_norm(nn.Conv2d(ndf * mult, ndf * mult * 2, 4, 2, 0, bias=True)),
                       nn.LeakyReLU(0.2, True)]
 
         mult = 2 ** (n_layers - 2 - 1)
         model += [nn.ReflectionPad2d(1),
-                  nn.utils.spectral_norm(nn.Conv2d(64 * mult, 64 * mult * 2, 4, 1, 0, bias=True)),
+                  nn.utils.spectral_norm(nn.Conv2d(ndf * mult, ndf * mult * 2, 4, 1, 0, bias=True)),
                   nn.LeakyReLU(0.2, True)]
 
         # Class Activation Map
         mult = 2 ** (n_layers - 2)
-        self.gap_fc = nn.utils.spectral_norm(nn.Linear(64 * mult, 1, bias=False))
-        self.gmp_fc = nn.utils.spectral_norm(nn.Linear(64 * mult, 1, bias=False))
-        self.conv1x1 = nn.Conv2d(64 * mult * 2, 64 * mult, 1, 1, bias=True)
+        self.gap_fc = nn.utils.spectral_norm(nn.Linear(ndf * mult, 1, bias=False))
+        self.gmp_fc = nn.utils.spectral_norm(nn.Linear(ndf * mult, 1, bias=False))
+        self.conv1x1 = nn.Conv2d(ndf * mult * 2, ndf * mult, 1, 1, bias=True)
         self.leaky_relu = nn.LeakyReLU(0.2, True)
 
         self.pad = nn.ReflectionPad2d(1)
-        self.conv = nn.utils.spectral_norm(nn.Conv2d(64 * mult, 1, 4, 1, 0, bias=False))
+        self.conv = nn.utils.spectral_norm(nn.Conv2d(ndf * mult, 1, 4, 1, 0, bias=False))
 
         self.model = nn.Sequential(*model)
 
@@ -88,67 +88,74 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, image_size=256):
+    def __init__(self, image_size=256,ngf=64):
         super(Generator, self).__init__()
+        n_downsampling = 2
         down_layer = [
             nn.ReflectionPad2d(3),
-            nn.Conv2d(3, 64, 7, 1, 0, bias=False),
-            nn.InstanceNorm2d(64),
+            nn.Conv2d(3, ngf, 7, 1, 0, bias=False),
+            nn.InstanceNorm2d(ngf),
             nn.ReLU(inplace=True),
 
             # Down-Sampling
             nn.ReflectionPad2d(1),
-            nn.Conv2d(64, 128, 3, 2, 0, bias=False),
-            nn.InstanceNorm2d(256),
+            nn.Conv2d(ngf, ngf*2, 3, 2, 0, bias=False),
+            nn.InstanceNorm2d(ngf * 4),
             nn.ReLU(inplace=True),
             nn.ReflectionPad2d(1),
-            nn.Conv2d(128, 256, 3, 2, 0, bias=False),
-            nn.InstanceNorm2d(256),
+            nn.Conv2d(ngf * 2, ngf * 4, 3, 2, 0, bias=False),
+            nn.InstanceNorm2d(ngf * 4),
             nn.ReLU(inplace=True),
 
             # Down-Sampling Bottleneck
-            ResNetBlock(256),
-            ResNetBlock(256),
-            ResNetBlock(256),
-            ResNetBlock(256),
+            ResNetBlock(ngf * 4),
+            ResNetBlock(ngf * 4),
+            ResNetBlock(ngf * 4),
+            ResNetBlock(ngf * 4),
         ]
 
+        mult = 2**n_downsampling
+
         # Class Activation Map
-        self.gap_fc = nn.Linear(256, 1, bias=False)
-        self.gmp_fc = nn.Linear(256, 1, bias=False)
-        self.conv1x1 = nn.Conv2d(512, 256, 1, 1, bias=True)
+        self.gap_fc = nn.Linear(ngf * 4, 1, bias=False)
+        self.gmp_fc = nn.Linear(ngf * 4, 1, bias=False)
+        self.conv1x1 = nn.Conv2d(ngf * 8, ngf * 4, 1, 1, bias=True)
         self.relu = nn.ReLU(inplace=True)
 
         # Gamma, Beta block
+        # FC = [nn.Linear(ngf * mult, ngf * mult, bias=False),
+        #         nn.ReLU(True),
+        #         nn.Linear(ngf * mult, ngf * mult, bias=False),
+        #         nn.ReLU(True)]
         fc = [
-            nn.Linear(image_size * image_size * 16, 256, bias=False),
+            nn.Linear(image_size // mult * image_size // mult * ngf * mult, ngf * 4, bias=False),
             nn.ReLU(inplace=True),
-            nn.Linear(256, 256, bias=False),
+            nn.Linear(ngf * mult, ngf * mult, bias=False),
             nn.ReLU(inplace=True)
         ]
 
-        self.gamma = nn.Linear(256, 256, bias=False)
-        self.beta = nn.Linear(256, 256, bias=False)
+        self.gamma = nn.Linear(ngf * mult, ngf * mult, bias=False)
+        self.beta = nn.Linear(ngf * mult, ngf * mult, bias=False)
 
         # Up-Sampling Bottleneck
         for i in range(4):
-            setattr(self, "ResNetAdaILNBlock_" + str(i + 1), ResNetAdaILNBlock(256))
+            setattr(self, "ResNetAdaILNBlock_" + str(i + 1), ResNetAdaILNBlock(ngf * mult))
 
         up_layer = [
             nn.Upsample(scale_factor=2, mode="nearest"),
             nn.ReflectionPad2d(1),
-            nn.Conv2d(256, 128, 3, 1, 0, bias=False),
-            ILN(128),
+            nn.Conv2d(ngf * 4, ngf * 2, 3, 1, 0, bias=False),
+            ILN(ngf * 2),
             nn.ReLU(inplace=True),
 
             nn.Upsample(scale_factor=2, mode="nearest"),
             nn.ReflectionPad2d(1),
-            nn.Conv2d(128, 64, 3, 1, 0, bias=False),
-            ILN(64),
+            nn.Conv2d(ngf * 2, ngf, 3, 1, 0, bias=False),
+            ILN(ngf),
             nn.ReLU(inplace=True),
 
             nn.ReflectionPad2d(3),
-            nn.Conv2d(64, 3, 7, 1, 0, bias=False),
+            nn.Conv2d(ngf, 3, 7, 1, 0, bias=False),
             nn.Tanh()
         ]
 
