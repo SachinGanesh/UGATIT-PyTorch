@@ -85,9 +85,9 @@ if torch.cuda.is_available() and not args.cuda:
 # Dataset
 dataset = ImageDataset(root=os.path.join(args.dataroot, args.dataset),
                        transform=transforms.Compose([
-                           transforms.Resize((args.image_size + 30, args.image_size + 30)),
-                           transforms.RandomCrop(args.image_size),
-                           transforms.RandomHorizontalFlip(),
+#                            transforms.Resize((args.image_size + 30, args.image_size + 30)),
+#                            transforms.RandomCrop(args.image_size),
+#                            transforms.RandomHorizontalFlip(),
                            transforms.ToTensor(),
                            transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
                        ]),
