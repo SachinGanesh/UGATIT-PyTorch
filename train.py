@@ -51,6 +51,7 @@ if __name__ == '__main__':
     parser.add_argument("--lr", type=float, default=0.0002, help="Learning rate. (default:0.0002)")
     parser.add_argument("-p", "--print-freq", default=1, type=int, metavar="N", help="Print frequency. (default:100)")
     parser.add_argument("--cuda", action="store_true", help="Enables cuda")
+    parser.add_argument("--image_ch", default=8, type=int, help="Enables cuda")
     parser.add_argument("--netG_A2B", default="", help="path to netG_A2B (to continue training)")
     parser.add_argument("--netG_B2A", default="", help="path to netG_B2A (to continue training)")
     parser.add_argument("--netD_A", default="", help="path to netD_A (to continue training)")
@@ -110,7 +111,7 @@ if __name__ == '__main__':
 
     device = torch.device("cuda:0" if args.cuda else "cpu")
 
-    image_ch = 8
+    image_ch = args.image_ch
 
     # create model
     netG_A2B = Generator(image_size=args.image_size,ngf=image_ch).to(device)
